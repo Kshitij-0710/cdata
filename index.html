@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bharat Checklist Demo</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f3f4f6; --card-bg: #ffffff; --text: #1f2937; --border: #e5e7eb; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        
+        .category-card { background: var(--card-bg); border-radius: 12px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+        .category-header { background: var(--primary); color: white; padding: 16px; font-weight: 600; }
+        
+        .checklist-header { padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+        .checklist-header:hover { background: #f8fafc; }
+        
+        .items-container { display: none; padding: 0 16px; background: #fff; }
+        .items-container.open { display: block; }
+        
+        .item-row { padding: 16px 0; border-bottom: 1px solid var(--border); }
+        .question-text { font-weight: 600; margin-bottom: 8px; display: block; color: #111; }
+
+        /* --- NEW INPUT STYLES --- */
+        
+        /* Text Input */
+        .custom-input { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        
+        /* Slider */
+        .slider-wrapper { display: flex; align-items: center; gap: 10px; }
+        .slider-wrapper input { flex: 1; accent-color: var(--primary); }
+        .slider-val { font-weight: bold; color: var(--primary); min-width: 40px; text-align: right; }
+
+        /* Rating Stars */
+        .star-rating { font-size: 24px; color: #ddd; cursor: pointer; }
+        .star-rating span:hover, .star-rating span.active { color: #fbbf24; }
+
+        /* Radio/Checkbox Group */
+        .option-group { display: flex; flex-direction: column; gap: 6px; }
+        .option-label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+        .option-label input { accent-color: var(--primary); width: 16px; height: 16px; }
+
+        /* Controls */
+        .controls { display: flex; gap: 8px; margin-top: 12px; border-top: 1px dashed #eee; padding-top: 8px; }
+        .action-btn { border: 1px solid var(--border); background: #fff; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+        .action-btn:hover { background: #f9fafb; }
+        .action-btn.active { background: #eff6ff; border-color: var(--primary); color: var(--primary); }
+        
+        .note-area { width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; display: none; font-size: 13px; box-sizing: border-box; }
+
+        .error-msg { color: #dc2626; background: #fef2f2; padding: 1rem; border-radius: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 style="text-align: center;">🇮🇳 OpMaint Safety Checks</h1>
+        <div id="app">
+            <p style="text-align: center; color: #666;">⏳ Loading Checklists...</p>
+        </div>
+    </div>
+
+    <script>
+        fetch('data.json')
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP Error! Status: ${response.status}`);
+                return response.json();
+            })
+            .then(data => renderApp(data))
+            .catch(error => {
+                console.error('Fetch error:', error);
+                document.getElementById('app').innerHTML = `<div class="error-msg">❌ Error loading data.json<br>Use Live Server.</div>`;
+            });
+
+        function renderApp(checklistData) {
+            const app = document.getElementById('app');
+            app.innerHTML = ''; 
+
+            checklistData.forEach((category, catIndex) => {
+                const catCard = document.createElement('div');
+                catCard.className = 'category-card';
+                catCard.innerHTML = `<div class="category-header">${category.category_name}</div>`;
+
+                category.checklists.forEach((list, listIndex) => {
+                    const listGroup = document.createElement('div');
+                    
+                    // Header
+                    const header = document.createElement('div');
+                    header.className = 'checklist-header';
+                    header.innerHTML = `
+                        <div>
+                            <strong>${list.title}</strong>
+                            <div style="font-size:0.85em; color:#666; margin-top:2px;">${list.description}</div>
+                        </div>
+                        <span>▼</span>
+                    `;
+
+                    // Items Container
+                    const itemsDiv = document.createElement('div');
+                    itemsDiv.className = 'items-container';
+
+                    list.items.forEach((item, itemIndex) => {
+                        const uniqueId = `c${catIndex}_l${listIndex}_i${itemIndex}`;
+                        
+                        // --- 1. DYNAMIC INPUT GENERATION ---
+                        let inputHTML = '';
+
+                        // CASE A: RADIO or CHECKBOX
+                        if (item.type === 'radio' || item.type === 'checkbox') {
+                            const inputType = item.type === 'radio' ? 'radio' : 'checkbox';
+                            const options = item.options || ['Pass', 'Fail'];
+                            
+                            const optionsHTML = options.map(opt => `
+                                <label class="option-label">
+                                    <input type="${inputType}" name="${uniqueId}" value="${opt}">
+                                    ${opt}
+                                </label>
+                            `).join('');
+                            
+                            inputHTML = `<div class="option-group">${optionsHTML}</div>`;
+                        }
+                        
+                        // CASE B: TEXT INPUT
+                        else if (item.type === 'text') {
+                            inputHTML = `
+                                <input type="text" class="custom-input" 
+                                placeholder="${item.placeholder || 'Enter value...'}">
+                            `;
+                        }
+
+                        // CASE C: SLIDER
+                        else if (item.type === 'slider') {
+                            const min = item.min || 0;
+                            const max = item.max || 100;
+                            const unit = item.unit || '';
+                            
+                            inputHTML = `
+                                <div class="slider-wrapper">
+                                    <span style="font-size:0.8em; color:#666;">${min}</span>
+                                    <input type="range" min="${min}" max="${max}" 
+                                        oninput="document.getElementById('val_${uniqueId}').innerText = this.value + '${unit}'">
+                                    <span style="font-size:0.8em; color:#666;">${max}</span>
+                                    <span id="val_${uniqueId}" class="slider-val">0${unit}</span>
+                                </div>
+                            `;
+                        }
+
+                        // CASE D: RATING (STARS)
+                        else if (item.type === 'rating') {
+                            inputHTML = `
+                                <div class="star-rating" title="Rate 1-5">
+                                    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                                </div>
+                            `;
+                        }
+
+                        // --- 2. CONTROLS (Media / Notes) ---
+                        let controlsHTML = '';
+                        if(item.allow_media) controlsHTML += `<button class="action-btn" onclick="this.classList.toggle('active')">📷 Photo</button>`;
+                        if(item.allow_notes) controlsHTML += `<button class="action-btn" onclick="toggleNote('note_${uniqueId}')">📝 Note</button>`;
+
+                        // --- 3. ASSEMBLE ROW ---
+                        const itemRow = document.createElement('div');
+                        itemRow.className = 'item-row';
+                        itemRow.innerHTML = `
+                            <span class="question-text">${item.question}</span>
+                            ${inputHTML}
+                            <div class="controls">
+                                ${controlsHTML}
+                            </div>
+                            <textarea id="note_${uniqueId}" class="note-area" placeholder="Add observation..."></textarea>
+                        `;
+                        itemsDiv.appendChild(itemRow);
+                    });
+
+                    // Toggle Logic
+                    header.addEventListener('click', () => {
+                        itemsDiv.classList.toggle('open');
+                        header.querySelector('span').innerText = itemsDiv.classList.contains('open') ? '▲' : '▼';
+                    });
+
+                    listGroup.appendChild(header);
+                    listGroup.appendChild(itemsDiv);
+                    catCard.appendChild(listGroup);
+                });
+
+                app.appendChild(catCard);
+            });
+        }
+
+        function toggleNote(id) {
+            const el = document.getElementById(id);
+            el.style.display = el.style.display === 'block' ? 'none' : 'block';
+            if (el.style.display === 'block') el.focus();
+        }
+    </script>
+</body>
+</html>
